@@ -33,8 +33,8 @@ public final class Main extends OutputWriter
     private static final String LOG_FILE = "awele.log";
     private static final String ANONYMOUS_LOG_FILE = "awele.anonymous.log";
     // Pour l'évaluation, seuls les bots des étudiants (CompetitorBot) sont mis en compétition
-    private static final Tournament TOURNAMENT = Tournament.ALL;
-    //private static final Tournament TOURNAMENT = Tournament.COMPETITORS;
+    //private static final Tournament TOURNAMENT = Tournament.ALL;
+    private static final Tournament TOURNAMENT = Tournament.COMPETITORS;
     //private static final Tournament TOURNAMENT = Tournament.CHAMPIONS;
     private static final int NB_RUNS = 100;
     //private static final int NB_RUNS = 1;
