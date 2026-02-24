@@ -7,13 +7,13 @@ import awele.core.InvalidBotException;
 import java.util.Arrays;
 
 /*
-public class MinMaxH2 extends CompetitorBot {
+public class MinMaxH3 extends CompetitorBot {
 
     private static final long TIME_LIMIT_MS = 90;
     private boolean timeOut = false; // Drapeau pour signaler que le temps est écoulé
 
-    public MinMaxH2() throws InvalidBotException {
-        this.setBotName("MinMaxProfondeurIteratif");
+    public MinMaxH3() throws InvalidBotException {
+        this.setBotName("MinMaxTrieCoups");
         this.addAuthor("Iliass FERCHACH");
     }
 
@@ -33,44 +33,55 @@ public class MinMaxH2 extends CompetitorBot {
 
     @Override
     public double[] getDecision(Board board) {
-        double[] bestDecisions = new double[Board.NB_HOLES];
-        Arrays.fill(bestDecisions, Double.NEGATIVE_INFINITY); // Sécurité au cas où
-
-        long startTime = System.currentTimeMillis();
-        timeOut = false;
-
         int currentPlayer = board.getCurrentPlayer();
+        int opponentPlayer = Board.otherPlayer(currentPlayer);
 
-        //forcer le premier coup tout a droite
-        if (board.getLog(currentPlayer).length == 0 && board.getLog(1 - currentPlayer).length == 0) {
+        // --- 1. L'OUVERTURE FORCÉE ---
+        if (board.getLog(currentPlayer).length == 0 && board.getLog(opponentPlayer).length == 0) {
             double[] firstMoveDecision = new double[Board.NB_HOLES];
             Arrays.fill(firstMoveDecision, Double.NEGATIVE_INFINITY);
-
             if (board.validMoves(currentPlayer)[5]) {
                 firstMoveDecision[5] = 1.0;
                 return firstMoveDecision;
             }
         }
 
+        // --- 2. INITIALISATION ---
+        double[] bestDecisions = new double[Board.NB_HOLES];
+        Arrays.fill(bestDecisions, Double.NEGATIVE_INFINITY);
+
+        long startTime = System.currentTimeMillis();
+        timeOut = false;
         boolean[] validMoves = board.validMoves(currentPlayer);
 
-        // L'Approfondissement Itératif (on boucle sur la profondeur)
-        // On peut aller jusqu'à 30 théoriquement si l'ordi est surpuissant
+        // --- 3. APPROFONDISSEMENT ITÉRATIF ---
         for (int depth = 1; depth <= 30; depth++) {
             double[] currentDecisions = new double[Board.NB_HOLES];
-            boolean searchCompleted = true; // Est-ce qu'on a fini cette profondeur sans timeout ?
+            boolean searchCompleted = true;
 
-            for (int i = 0; i < Board.NB_HOLES; i++) {
+            // NOUVEAU : TRI DES COUPS (MOVE ORDERING)
+            // On crée un tableau avec les numéros de nos trous
+            Integer[] moveOrder = new Integer[]{0, 1, 2, 3, 4, 5};
+
+            // Si on a déjà fait au moins l'itération 1, on a des résultats précédents
+            if (depth > 1) {
+                // On trie les trous : celui qui a la meilleure note dans bestDecisions passe en premier !
+                Arrays.sort(moveOrder, (a, b) -> Double.compare(bestDecisions[b], bestDecisions[a]));
+            }
+
+            // On utilise notre tableau trié pour choisir quel trou évaluer en premier
+            for (int holeIndex = 0; holeIndex < Board.NB_HOLES; holeIndex++) {
+                int i = moveOrder[holeIndex]; // 'i' sera le meilleur trou en premier, puis le 2ème meilleur, etc.
+
                 if (validMoves[i]) {
                     try {
                         double[] moveDecision = new double[Board.NB_HOLES];
                         moveDecision[i] = 1.0;
                         Board nextState = board.playMoveSimulationBoard(currentPlayer, moveDecision);
 
-                        // On passe le startTime au minimax
+                        // On lance le minimax sur ce coup
                         double val = minimax(nextState, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, currentPlayer, startTime);
 
-                        // Si le minimax a déclenché l'alerte de temps, on avorte !
                         if (timeOut) {
                             searchCompleted = false;
                             break;
@@ -85,14 +96,11 @@ public class MinMaxH2 extends CompetitorBot {
                 }
             }
 
-            // Si on a réussi à finir cette profondeur AVANT la fin du chrono
+            // --- 4. SAUVEGARDE DE SÉCURITÉ ---
             if (searchCompleted) {
-                // On sauvegarde ces décisions comme étant nos meilleures "certitudes"
                 System.arraycopy(currentDecisions, 0, bestDecisions, 0, Board.NB_HOLES);
             } else {
-                // Le chrono a sonné pendant qu'on explorait. On jette les calculs en cours,
-                // on casse la boucle, et on utilisera la profondeur précédente !
-                break;
+                break; // Le temps est écoulé, on s'arrête et on garde le bestDecisions précédent.
             }
         }
 
@@ -208,5 +216,4 @@ public class MinMaxH2 extends CompetitorBot {
         return score;
     }
 }
-
- */
+*/

@@ -5,7 +5,7 @@ import awele.core.Board;
 import awele.core.InvalidBotException;
 
 import java.util.Arrays;
-
+/*
 public class GuiliasBot extends CompetitorBot {
     
     private static final int DEFAULT_DEPTH = 6;
@@ -144,3 +144,5 @@ public class GuiliasBot extends CompetitorBot {
         return (scoreDiff * 100.0) + seedDiff;
     }
 }
+
+ */
