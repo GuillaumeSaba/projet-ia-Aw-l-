@@ -1,0 +1,191 @@
+package awele.bot.competitor.FastBitBoard;
+
+import awele.bot.CompetitorBot;
+import awele.core.Board;
+import awele.core.InvalidBotException;
+
+import java.util.Arrays;
+
+/*
+public class MinMaxFastBitBoard extends CompetitorBot {
+
+    // --- PARAMÈTRES DE TEMPS ---
+    private static final long TIME_LIMIT_MS = 90;
+    private boolean timeOut = false;
+    private int nodeCount = 0;
+
+    public MinMaxFastBitBoard() throws InvalidBotException {
+        this.setBotName("MinMaxFastBitBoard");
+        this.addAuthor("Iliass FERCHACH");
+    }
+
+    @Override
+    public void initialize() {}
+
+    @Override
+    public void finish() {}
+
+    @Override
+    public void learn() {}
+
+    @Override
+    public double[] getDecision(Board board) {
+        int currentPlayer = board.getCurrentPlayer();
+        int opponentPlayer = Board.otherPlayer(currentPlayer);
+
+        // --- 1. L'OUVERTURE FORCÉE ---
+        if (board.getLog(currentPlayer).length == 0 && board.getLog(opponentPlayer).length == 0) {
+            double[] firstMoveDecision = new double[Board.NB_HOLES];
+            Arrays.fill(firstMoveDecision, Double.NEGATIVE_INFINITY);
+            if (board.validMoves(currentPlayer)[5]) {
+                firstMoveDecision[5] = 1.0;
+                return firstMoveDecision;
+            }
+        }
+
+        // --- 2. INITIALISATION ---
+        double[] bestDecisions = new double[Board.NB_HOLES];
+        Arrays.fill(bestDecisions, Double.NEGATIVE_INFINITY);
+
+        long startTime = System.currentTimeMillis();
+        this.timeOut = false;
+        this.nodeCount = 0;
+
+        // On crée notre plateau ultra-léger pour les simulations
+        FastBitBoard fastRoot = new FastBitBoard(board);
+
+        // --- 3. APPROFONDISSEMENT ITÉRATIF ---
+        for (int depth = 1; depth <= 50; depth++) {
+            double[] currentDecisions = new double[Board.NB_HOLES];
+            Arrays.fill(currentDecisions, Double.NEGATIVE_INFINITY);
+            boolean searchCompleted = true;
+
+            // --- TRI PRIMITIF (Zéro allocation d'objet) ---
+            int[] moveOrder = {0, 1, 2, 3, 4, 5};
+            if (depth > 1) {
+                // Tri à bulles ultra-rapide sur 6 éléments
+                for (int i = 0; i < 6; i++) {
+                    for (int j = i + 1; j < 6; j++) {
+                        if (bestDecisions[moveOrder[j]] > bestDecisions[moveOrder[i]]) {
+                            int temp = moveOrder[i];
+                            moveOrder[i] = moveOrder[j];
+                            moveOrder[j] = temp;
+                        }
+                    }
+                }
+            }
+
+            // --- SIMULATION ---
+            for (int holeIndex = 0; holeIndex < Board.NB_HOLES; holeIndex++) {
+                int i = moveOrder[holeIndex];
+
+                if (fastRoot.isValid(i)) {
+                    FastBitBoard nextState = fastRoot.playMove(i);
+                    double val = minimax(nextState, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, currentPlayer, startTime);
+
+                    if (timeOut) {
+                        searchCompleted = false;
+                        break;
+                    }
+                    currentDecisions[i] = val;
+                }
+            }
+
+            // --- 4. SAUVEGARDE DE SÉCURITÉ ---
+            if (searchCompleted) {
+                System.arraycopy(currentDecisions, 0, bestDecisions, 0, Board.NB_HOLES);
+            } else {
+                break; // Le temps est écoulé
+            }
+        }
+
+        return bestDecisions;
+    }
+
+    private double minimax(FastBitBoard board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, long startTime) {
+        // Alerte Chronomètre
+        if ((nodeCount++ & 1023) == 0) {
+            if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
+                timeOut = true;
+                return 0.0;
+            }
+        }
+
+        // Vérification condition d'arrêt avec votre optimisation mathématique (0 appel de méthode)
+        if (depth == 0 || (48 - board.scores[0] - board.scores[1]) < 2) {
+            return evaluate(board, myPlayerIndex);
+        }
+
+        boolean hasMove = false;
+
+        if (maximizingPlayer) {
+            double maxEval = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < 6; i++) {
+                if (board.isValid(i)) {
+                    hasMove = true; // On a trouvé un coup, on lève le drapeau
+
+                    FastBitBoard nextState = board.playMove(i);
+                    double eval = minimax(nextState, depth - 1, alpha, beta, false, myPlayerIndex, startTime);
+                    maxEval = Math.max(maxEval, eval);
+                    alpha = Math.max(alpha, eval);
+
+                    if (beta <= alpha) break; // Élagage Alpha-Beta
+                    if (timeOut) return maxEval; // Sécurité pour remonter vite en cas de Timeout
+                }
+            }
+
+            // Gérer le cas de famine : si on a fait le tour des 6 trous et qu'aucun n'était valide
+            if (!hasMove) {
+                return evaluate(board, myPlayerIndex);
+            }
+
+            return maxEval;
+
+        } else {
+            double minEval = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < 6; i++) {
+                if (board.isValid(i)) {
+                    hasMove = true; // L'adversaire a au moins un coup
+
+                    FastBitBoard nextState = board.playMove(i);
+                    double eval = minimax(nextState, depth - 1, alpha, beta, true, myPlayerIndex, startTime);
+                    minEval = Math.min(minEval, eval);
+                    beta = Math.min(beta, eval);
+
+                    if (beta <= alpha) break; // Élagage Alpha-Beta
+                    if (timeOut) return minEval; // Sécurité Timeout
+                }
+            }
+
+            // Gérer le cas de famine pour l'adversaire
+            if (!hasMove) {
+                return evaluate(board, myPlayerIndex);
+            }
+
+            return minEval;
+        }
+    }
+
+    private double evaluate(FastBitBoard board, int myPlayerIndex) {
+        int oppIndex = 1 - myPlayerIndex;
+        double eval = (board.scores[myPlayerIndex] - board.scores[oppIndex]) * 25.0;
+
+        for (int i = 0; i < 6; i++) {
+            int mySeeds = board.getSeeds(myPlayerIndex, i);
+            int oppSeeds = board.getSeeds(oppIndex, i);
+
+            // Heuristique pour MES trous
+            if (mySeeds > 12) eval += 28.0;
+            else if (mySeeds == 0) eval -= 54.0;
+            else if (mySeeds < 3) eval -= 36.0;
+
+            // Heuristique pour les trous de L'ADVERSAIRE
+            if (oppSeeds > 12) eval -= 28.0;
+            else if (oppSeeds == 0) eval += 54.0;
+            else if (oppSeeds < 3) eval += 36.0;
+        }
+        return eval;
+    }
+}
+
+ */

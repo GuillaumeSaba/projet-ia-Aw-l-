@@ -1,4 +1,4 @@
-package awele.bot.competitor.GuiliasBot;
+package awele.bot.competitor.AwariLong;
 
 import awele.core.Board;
 

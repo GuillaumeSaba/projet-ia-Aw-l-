@@ -1,4 +1,4 @@
-package awele.bot.competitor.GuiliasBot;
+package awele.bot.competitor.FastBoardTime.FastBoard;
 
 import awele.bot.CompetitorBot;
 import awele.core.Board;
@@ -6,25 +6,30 @@ import awele.core.InvalidBotException;
 
 import java.util.Arrays;
 
+/*
 public class MinMaxH4 extends CompetitorBot {
 
     // --- PARAMÈTRES DE TEMPS ---
     private static final long TIME_LIMIT_MS = 90;
     private boolean timeOut = false;
+    private int nodeCount = 0;
 
     public MinMaxH4() throws InvalidBotException {
-        this.setBotName("MinMaxFastBoard");
+        this.setBotName("MinMaxFastBoardTime");
         this.addAuthor("Iliass FERCHACH");
     }
 
     @Override
-    public void initialize() {}
+    public void initialize() {
+    }
 
     @Override
-    public void finish() {}
+    public void finish() {
+    }
 
     @Override
-    public void learn() {}
+    public void learn() {
+    }
 
     @Override
     public double[] getDecision(Board board) {
@@ -47,6 +52,7 @@ public class MinMaxH4 extends CompetitorBot {
 
         long startTime = System.currentTimeMillis();
         this.timeOut = false;
+        this.nodeCount = 0;
 
         // On crée notre plateau ultra-léger pour les simulations
         FastBoard fastRoot = new FastBoard(board);
@@ -101,9 +107,11 @@ public class MinMaxH4 extends CompetitorBot {
 
     private double minimax(FastBoard board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, long startTime) {
         // Alerte Chronomètre
-        if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
-            timeOut = true;
-            return 0.0;
+        if ((this.nodeCount++ & 1023) == 0) {
+            if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
+                timeOut = true;
+                return 0.0;
+            }
         }
 
         // Vérification condition d'arrêt avec votre optimisation mathématique (0 appel de méthode)
@@ -191,7 +199,8 @@ public class MinMaxH4 extends CompetitorBot {
         int[] scores = new int[2];
         int currentPlayer;
 
-        private FastBoard() {}
+        private FastBoard() {
+        }
 
         // Constructeur qui traduit le vrai Board officiel au tout début
         public FastBoard(Board b) {
@@ -202,7 +211,7 @@ public class MinMaxH4 extends CompetitorBot {
             int[] p0 = (this.currentPlayer == 0) ? b.getPlayerHoles() : b.getOpponentHoles();
             int[] p1 = (this.currentPlayer == 1) ? b.getPlayerHoles() : b.getOpponentHoles();
 
-            for(int i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++) {
                 this.holes[i] = p0[i];
                 this.holes[6 + i] = p1[i];
             }
@@ -259,11 +268,17 @@ public class MinMaxH4 extends CompetitorBot {
                 boolean takeAll = true;
                 for (int i = 0; i <= currentHole % 6; i++) {
                     int val = next.holes[oppSide * 6 + i];
-                    if (val == 1 || val > 3) { takeAll = false; break; }
+                    if (val == 1 || val > 3) {
+                        takeAll = false;
+                        break;
+                    }
                 }
                 if (takeAll) {
                     for (int i = (currentHole % 6) + 1; i < 6; i++) {
-                        if (next.holes[oppSide * 6 + i] != 0) { takeAll = false; break; }
+                        if (next.holes[oppSide * 6 + i] != 0) {
+                            takeAll = false;
+                            break;
+                        }
                     }
                 }
 
@@ -282,3 +297,5 @@ public class MinMaxH4 extends CompetitorBot {
         }
     }
 }
+
+ */
