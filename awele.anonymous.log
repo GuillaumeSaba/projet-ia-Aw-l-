@@ -9,39 +9,39 @@ Classe : awele.bot.competitor.FastBoard.MinMaxH4
 Instanciation du bot "MinMaxFastBoard"
 Nom du bot : MinMaxFastBoard
 Temps d'apprentissage : 00:00:00.000
-Durée d'une prise de décision : 00:00:00.092
+Durée d'une prise de décision : 00:00:00.093
 Usage mémoire : 0 B
-Usage mémoire maximum : 8,0 MiB
+Usage mémoire maximum : 34,0 MiB
 
 Bot 2/2
 Classe : awele.bot.competitor.FastBoard.MinMaxH4Learner
 Instanciation du bot "MinMaxH4Learner"
 Nom du bot : MinMaxH4Learner
-Temps d'apprentissage : 00:05:00.001
+Temps d'apprentissage : 00:55:00.005
 Durée d'une prise de décision : 00:00:00.090
-Usage mémoire : 69,3 KiB
-Usage mémoire maximum : 90,1 MiB
+Usage mémoire : 69,7 KiB
+Usage mémoire maximum : 172,2 MiB
 
 2 bots ont été instanciés
-Durée du chargement : 00:05:06.300
-Mémoire utilisée : 1,6 MiB
+Durée du chargement : 00:55:06.502
+Mémoire utilisée : 2,0 MiB
 
 Que le championnat commence !
 
 Affrontement 1/1
 MinMaxFastBoard vs. MinMaxH4Learner
-Score : 2.52 - 0.45
-MinMaxFastBoard a gagné
-Nombre de coups joués : 98.2 par match
-Durée : 00:00:08.836 par match
+Score : 1.35 - 1.59
+MinMaxH4Learner a gagné
+Nombre de coups joués : 105.455 par match
+Durée : 00:00:09.770 par match
 Mémoire utilisée : 1,5 MiB
 
-Durée du championnat : 00:29:27.471
+Durée du championnat : 00:32:34.173
 
 Scores finaux :
-MinMaxFastBoard : 2.52
-MinMaxH4Learner : 0.45
+MinMaxFastBoard : 1.35
+MinMaxH4Learner : 1.59
 
 Rangs :
-1. MinMaxFastBoard : 2.52
-2. MinMaxH4Learner : 0.45
+1. MinMaxH4Learner : 1.59
+2. MinMaxFastBoard : 1.35

@@ -29,6 +29,7 @@ public class MinMaxH4Learner extends CompetitorBot {
         boolean winning;
     }
 
+    
     public MinMaxH4Learner() throws InvalidBotException {
         this.setBotName("MinMaxH4Learner");
         this.addAuthor("SABATIER Guillaume");
