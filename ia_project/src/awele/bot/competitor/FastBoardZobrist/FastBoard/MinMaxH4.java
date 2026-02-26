@@ -5,7 +5,7 @@ import awele.core.Board;
 import awele.core.InvalidBotException;
 
 import java.util.Arrays;
-
+/*
 public class MinMaxH4 extends CompetitorBot {
 
     // --- PARAMÈTRES DE TEMPS ---
@@ -362,4 +362,6 @@ public class MinMaxH4 extends CompetitorBot {
         }
     }
 }
+
+ */
 
