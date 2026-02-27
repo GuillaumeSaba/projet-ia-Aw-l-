@@ -51,20 +51,43 @@ public class MinMaxH4Learner extends CompetitorBot {
     @Override
     public void learn() {
         long startTime = System.currentTimeMillis();
+        
+        // --- PHASE 0 : BENCHMARK (Ingéniosité) ---
+        System.err.println("Starting Benchmark...");
+        int matches = 0;
+        long benchStart = System.currentTimeMillis();
+        while (System.currentTimeMillis() - benchStart < 1000) {
+            playMatch(defaultWeights, defaultWeights, 4);
+            matches++;
+        }
+        System.err.println("Benchmark Result: " + matches + " matches/sec (depth 4)");
+        
+        // Ajustement dynamique des paramètres
+        int popSize = 20;
+        int simulationDepth = 6;
+        
+        if (matches > 5000) { // PC de guerre
+            popSize = 50;
+            simulationDepth = 8;
+            System.err.println("High-end PC detected! Boosting learning parameters.");
+        } else if (matches > 2000) { // Bon PC
+            popSize = 30;
+            simulationDepth = 7;
+            System.err.println("Good PC detected. Increasing depth.");
+        } else { // PC standard ou lent
+            System.err.println("Standard PC detected. Using default parameters.");
+        }
+        
+        // --- PHASE 1 : APPRENTISSAGE ---
         long maxDuration = 3300000; // 55 minutes
 
         loadDataset("C:/Users/Guillaume/projet-ia-Aw-l-/ia_project/data/awele.data");
         
-        int popSize = 20;
-        int simulationDepth = 6;
-        
         Integer[][] population = new Integer[popSize][11];
         
-        // Individu 0 : Poids par défaut
         for(int i=0; i<10; i++) population[0][i] = defaultWeights[i];
         population[0][10] = 0;
         
-        // Initialisation
         for (int i = 1; i < popSize; i++) {
             population[i] = new Integer[11];
             for (int w = 0; w < 10; w++) {
@@ -75,7 +98,7 @@ public class MinMaxH4Learner extends CompetitorBot {
         }
         
         int generation = 0;
-        while (System.currentTimeMillis() - startTime < maxDuration - 60000) { // On garde 1 min pour la finale
+        while (System.currentTimeMillis() - startTime < maxDuration - 60000) {
             for (int i = 0; i < popSize; i++) {
                 int[] w = toIntArray(population[i]);
                 int scoreData = evaluateOnDataset(w) * 20;
@@ -83,7 +106,7 @@ public class MinMaxH4Learner extends CompetitorBot {
                 for (int j = 0; j < 3; j++) {
                     int opponentIdx = random.nextInt(popSize);
                     if (i == opponentIdx) continue;
-                    int result = playMatch(w, toIntArray(population[opponentIdx]), 4);
+                    int result = playMatch(w, toIntArray(population[opponentIdx]), 4); // Profondeur 4 pour le tournoi rapide
                     if (result > 0) scorePlay += 3;
                     else if (result == 0) scorePlay += 1;
                 }
@@ -110,24 +133,23 @@ public class MinMaxH4Learner extends CompetitorBot {
             generation++;
         }
         
-        // FINALE : Meilleur Appris vs Poids par Défaut
+        // FINALE
         int[] bestLearned = toIntArray(population[0]);
         System.err.println("Learning finished. Best learned: " + Arrays.toString(bestLearned));
         
         System.err.println("Playing FINAL MATCH: Learned vs Default...");
         int scoreLearned = 0;
         
-        // Match Aller
-        int res1 = playMatch(bestLearned, defaultWeights, 6);
+        // On utilise la profondeur ajustée par le benchmark pour la finale
+        int res1 = playMatch(bestLearned, defaultWeights, simulationDepth);
         if (res1 > 0) scoreLearned += 3;
         else if (res1 == 0) scoreLearned += 1;
         
-        // Match Retour
-        int res2 = playMatch(defaultWeights, bestLearned, 6); // res2 = Default - Learned
-        if (res2 < 0) scoreLearned += 3; // Learned gagne
+        int res2 = playMatch(defaultWeights, bestLearned, simulationDepth);
+        if (res2 < 0) scoreLearned += 3;
         else if (res2 == 0) scoreLearned += 1;
         
-        if (scoreLearned >= 4) { // Il faut gagner au moins une fois et faire nul, ou gagner 2 fois
+        if (scoreLearned >= 4) {
             System.err.println("Learned weights are BETTER! Switching.");
             weights = bestLearned;
         } else {
@@ -363,9 +385,8 @@ public class MinMaxH4Learner extends CompetitorBot {
             double minEval = Double.POSITIVE_INFINITY;
             for (int i = 0; i < 6; i++) {
                 if (board.isValid(i)) {
-                    hasMove = true;
-                    FastBoard nextState = board.playMove(i);
-                    double eval = minimax(nextState, depth - 1, alpha, beta, true, myPlayerIndex, startTime);
+                    FastBoard next = board.playMove(i);
+                    double eval = minimax(next, depth - 1, alpha, beta, true, myPlayerIndex, startTime);
                     minEval = Math.min(minEval, eval);
                     beta = Math.min(beta, eval);
                     if (beta <= alpha) break;
