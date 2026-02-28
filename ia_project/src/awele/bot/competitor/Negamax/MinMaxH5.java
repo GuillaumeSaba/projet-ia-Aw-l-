@@ -1,5 +1,9 @@
 package awele.bot.competitor.Negamax;
+import awele.core.Board;
+import awele.bot.CompetitorBot;
+import awele.core.InvalidBotException;
 
+import java.util.Arrays;
 /*
 public class MinMaxH5 extends CompetitorBot {
 

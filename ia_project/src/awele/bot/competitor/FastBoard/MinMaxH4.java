@@ -292,3 +292,5 @@ public class MinMaxH4 extends CompetitorBot {
         }
     }
 }
+
+

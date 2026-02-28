@@ -108,9 +108,7 @@ public class MinMaxH2Learner extends CompetitorBot {
             // 2. Sélection
             Arrays.sort(population, Comparator.comparingInt(a -> -a[10]));
 
-            if (generation % 10 == 0) {
-                System.err.println("Gen " + generation + " Best Score=" + population[0][10] + " Weights=" + Arrays.toString(Arrays.copyOf(population[0], 10)));
-            }
+
 
             // 3. Reproduction
             Integer[][] newPopulation = new Integer[popSize][11];
@@ -365,4 +363,4 @@ public class MinMaxH2Learner extends CompetitorBot {
     }
 }
 
- */
+*/
