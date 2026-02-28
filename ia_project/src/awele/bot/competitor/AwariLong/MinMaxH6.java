@@ -12,7 +12,6 @@ public class MinMaxH6 extends CompetitorBot {
     // --- PARAMÈTRES DE TEMPS ---
     private static final long TIME_LIMIT_MS = 90;
     private boolean timeOut = false;
-    private int nodeCount = 0;
 
     public MinMaxH6() throws InvalidBotException {
         this.setBotName("MinMaxAwariLong");
@@ -52,7 +51,6 @@ public class MinMaxH6 extends CompetitorBot {
 
         long startTime = System.currentTimeMillis();
         this.timeOut = false;
-        this.nodeCount = 0;
 
         // On crée notre plateau ultra-léger basé sur les bits
         AwariLong fastRoot = AwariLong.fromBoard(board);
@@ -109,11 +107,9 @@ public class MinMaxH6 extends CompetitorBot {
     }
 
     private double minimax(AwariLong board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, long startTime) {
-        if ((nodeCount++ & 1023) == 0) {
-            if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
-                timeOut = true;
-                return 0.0;
-            }
+        if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
+            timeOut = true;
+            return 0.0;
         }
 
         // Condition d'arrêt optimisée (moins de 6 graines selon les règles)
