@@ -9,7 +9,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
@@ -21,8 +20,9 @@ public class MinMaxH6Learner extends CompetitorBot {
     private long nodeCount = 0;
 
     // --- PARAMÈTRES D'APPRENTISSAGE ---
-    private int[] defaultWeights = {25, 28, -54, -36, 0, 0, 0, 0, 0, 0};
-    private int[] weights = new int[10];
+    // [0]=Score, [1]=Krou, [2]=Vide, [3]=Vulnérable
+    private int[] defaultWeights = {25, 28, -54, -36};
+    private int[] weights = new int[4];
 
     private Random random;
     private List<TrainingData> dataset;
@@ -38,7 +38,7 @@ public class MinMaxH6Learner extends CompetitorBot {
         this.addAuthor("Iliass FERCHACH");
         this.random = new Random();
         this.dataset = new ArrayList<>();
-        System.arraycopy(defaultWeights, 0, weights, 0, 10);
+        System.arraycopy(defaultWeights, 0, weights, 0, 4);
     }
 
     @Override
@@ -49,104 +49,110 @@ public class MinMaxH6Learner extends CompetitorBot {
     public void finish() {
     }
 
+    // =========================================================================
+    // APPRENTISSAGE : HILL CLIMBING HYBRIDE (DATASET + SELF-PLAY)
+    // =========================================================================
     @Override
     public void learn() {
         long startTime = System.currentTimeMillis();
+        long maxDuration = 3600000 - 120000; // 58 minutes d'apprentissage pur (Marge de 2 min)
 
-        System.err.println("Starting Benchmark on AwariLong...");
+        System.err.println("Chargement de la base de données experte...");
+        loadDataset("ia_project/data/awele.data");
+
+        System.err.println("Démarrage du Hill Climbing Hybride avec Régularisation...");
+
+        int[] currentChampion = Arrays.copyOf(defaultWeights, 4);
+        int currentDatasetScore = evaluateOnDataset(currentChampion);
+
+        // --- BENCHMARK RAPIDE ---
         int matches = 0;
         long benchStart = System.currentTimeMillis();
         while (System.currentTimeMillis() - benchStart < 1000) {
-            playMatch(defaultWeights, defaultWeights, 5);
+            playMatch(currentChampion, currentChampion, 5);
             matches++;
         }
-        System.err.println("Benchmark Result: " + matches + " matches/sec (depth 5)");
+        int simDepth = (matches > 6000) ? 9 : (matches > 3000 ? 8 : 7);
+        System.err.println("Benchmark : " + matches + " matchs/sec -> Profondeur d'entraînement " + simDepth);
 
-        int popSize = 20;
-        int simDepth = 7;
-        if (matches > 6000) { popSize = 40; simDepth = 9; }
-        else if (matches > 3000) { popSize = 30; simDepth = 8; }
+        int iteration = 0;
+        int improvements = 0;
 
-        long maxDuration = 3600000 - 60000;
-
-        loadDataset("ia_project/data/awele.data");
-
-        Integer[][] population = new Integer[popSize][11];
-
-        for(int i=0; i<10; i++) population[0][i] = defaultWeights[i];
-        population[0][10] = 0;
-
-        for (int i = 1; i < popSize; i++) {
-            population[i] = new Integer[11];
-            for (int w = 0; w < 10; w++) {
-                if (w < 4) population[i][w] = mutate(population[0][w]);
-                else population[i][w] = random.nextInt(21) - 10;
-            }
-            population[i][10] = 0;
-        }
-
-        int generation = 0;
+        // --- BOUCLE D'APPRENTISSAGE ---
         while (System.currentTimeMillis() - startTime < maxDuration) {
 
-            for (int i = 0; i < popSize; i++) {
-                int[] w = toIntArray(population[i]);
+            int[] challenger = Arrays.copyOf(currentChampion, 4);
 
-                int scoreData = evaluateOnDataset(w);
-                int scorePlay = 0;
+            // 1. MUTATION RESTREINTE (RÉGULARISATION)
+            int nbMutations = 1 + random.nextInt(2);
+            for (int m = 0; m < nbMutations; m++) {
+                int geneIdx = random.nextInt(4);
+                challenger[geneIdx] += (random.nextInt(5) - 2); // Micro-mutation : -2 à +2
 
-                for (int j = 0; j < 3; j++) {
-                    int opponentIdx = random.nextInt(popSize);
-                    if (i == opponentIdx) continue;
+                // 2. BRIDAGE (CLAMPING) +/- 10 points
+                int limiteHaute = defaultWeights[geneIdx] + 10;
+                int limiteBasse = defaultWeights[geneIdx] - 10;
+                if (challenger[geneIdx] > limiteHaute) challenger[geneIdx] = limiteHaute;
+                if (challenger[geneIdx] < limiteBasse) challenger[geneIdx] = limiteBasse;
+            }
 
-                    int result = playMatch(w, toIntArray(population[opponentIdx]), 5);
-                    if (result > 0) scorePlay += 50;
-                    else if (result == 0) scorePlay += 10;
+            // 3. FILTRE DU DATASET (EXTRACTION DE CONNAISSANCES)
+            int challengerDatasetScore = evaluateOnDataset(challenger);
+            if (challengerDatasetScore < currentDatasetScore - 1) {
+                iteration++;
+                continue; // Rejet instantané si le dataset n'est pas convaincu
+            }
+
+            // 4. VALIDATION EN SELF-PLAY
+            int scoreChallenger = 0;
+
+            int resAller = playMatch(challenger, currentChampion, simDepth);
+            if (resAller > 0) scoreChallenger += 3;
+            else if (resAller == 0) scoreChallenger += 1;
+
+            int resRetour = playMatch(currentChampion, challenger, simDepth);
+            if (resRetour < 0) scoreChallenger += 3;
+            else if (resRetour == 0) scoreChallenger += 1;
+
+            if (scoreChallenger > 2) {
+                System.arraycopy(challenger, 0, currentChampion, 0, 4);
+                currentDatasetScore = Math.max(currentDatasetScore, challengerDatasetScore);
+                improvements++;
+                if (improvements % 5 == 0) {
+                    System.err.println("Amélioration #" + improvements + " (Dataset Score: " + currentDatasetScore + ") Poids : " + Arrays.toString(currentChampion));
                 }
-                population[i][10] = scoreData + scorePlay;
             }
-
-            Arrays.sort(population, Comparator.comparingInt(a -> -a[10]));
-
-            if (generation % 5 == 0) {
-                System.err.println("Gen " + generation + " | Best Fitness=" + population[0][10] + " | Weights=" + Arrays.toString(toIntArray(population[0])));
-            }
-
-            Integer[][] newPopulation = new Integer[popSize][11];
-            for(int k=0; k<3; k++) newPopulation[k] = Arrays.copyOf(population[k], 11);
-
-            for (int i = 3; i < popSize; i++) {
-                Integer[] parent1 = population[random.nextInt(popSize / 2)];
-                Integer[] parent2 = population[random.nextInt(popSize / 2)];
-                Integer[] child = crossover(parent1, parent2);
-                if (random.nextDouble() < 0.20) child = mutateGenome(child);
-                newPopulation[i] = child;
-            }
-            population = newPopulation;
-            generation++;
+            iteration++;
         }
 
-        int[] bestLearned = toIntArray(population[0]);
-        System.err.println("Learning finished. Best candidate: " + Arrays.toString(bestLearned));
+        // --- 5. LE FILET DE SÉCURITÉ DE HAUTE PROFONDEUR ---
+        System.err.println("Apprentissage terminé en " + iteration + " itérations.");
+        System.err.println("Validation finale à haute profondeur (Depth 8)...");
 
-        System.err.println("FINAL MATCH: Learned vs Default (Depth " + simDepth + ")...");
-        int scoreLearned = 0;
+        int finalScore = 0;
+        int validationDepth = 8;
 
-        int res1 = playMatch(bestLearned, defaultWeights, simDepth);
-        if (res1 > 0) scoreLearned += 3;
-        else if (res1 == 0) scoreLearned += 1;
+        int resAller = playMatch(currentChampion, defaultWeights, validationDepth);
+        if (resAller > 0) finalScore += 3;
+        else if (resAller == 0) finalScore += 1;
 
-        int res2 = playMatch(defaultWeights, bestLearned, simDepth);
-        if (res2 < 0) scoreLearned += 3;
-        else if (res2 == 0) scoreLearned += 1;
+        int resRetour = playMatch(defaultWeights, currentChampion, validationDepth);
+        if (resRetour < 0) finalScore += 3;
+        else if (resRetour == 0) finalScore += 1;
 
-        if (scoreLearned >= 4) {
-            System.err.println("SUCCESS: Learned weights are BETTER! Updating bot.");
-            System.arraycopy(bestLearned, 0, weights, 0, 10);
+        if (finalScore >= 4) {
+            System.err.println("SUCCÈS : Les poids appris sont validés !");
+            System.arraycopy(currentChampion, 0, this.weights, 0, 4);
         } else {
-            System.err.println("FAILURE: Default weights are still superior. Discarding learned weights.");
+            System.err.println("PROTECTION ACTIVE : L'apprentissage est moins bon à haute profondeur.");
+            System.err.println("Restauration du filet de sécurité (Poids de l'expert).");
+            System.arraycopy(defaultWeights, 0, this.weights, 0, 4);
         }
     }
 
+    // =========================================================================
+    // FONCTIONS DU DATASET (Zéro création d'objet)
+    // =========================================================================
     private void loadDataset(String path) {
         try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
@@ -157,8 +163,8 @@ public class MinMaxH6Learner extends CompetitorBot {
                 TrainingData data = new TrainingData();
                 data.myHoles = new int[6];
                 data.oppHoles = new int[6];
-                for(int i=0; i<6; i++) data.myHoles[i] = Integer.parseInt(parts[i]);
-                for(int i=0; i<6; i++) data.oppHoles[i] = Integer.parseInt(parts[6+i]);
+                for (int i = 0; i < 6; i++) data.myHoles[i] = Integer.parseInt(parts[i]);
+                for (int i = 0; i < 6; i++) data.oppHoles[i] = Integer.parseInt(parts[6 + i]);
                 data.winning = parts[13].equals("G");
                 dataset.add(data);
             }
@@ -167,9 +173,6 @@ public class MinMaxH6Learner extends CompetitorBot {
         }
     }
 
-    // --- NOUVELLES FONCTIONS D'ÉVALUATION SÉPARÉES (ZÉRO ALLOCATION EN MATCH) ---
-
-    // 1. Évaluation spécifique au Dataset (Utilisée uniquement pendant l'apprentissage)
     private int evaluateOnDataset(int[] w) {
         int score = 0;
         for (TrainingData data : dataset) {
@@ -181,100 +184,24 @@ public class MinMaxH6Learner extends CompetitorBot {
     }
 
     private double evaluateDatasetRow(int[] myHoles, int[] oppHoles, int[] w) {
-        double score = 0; // Score simulé (0-0)
-        int mySeeds = 0, oppSeeds = 0;
-        int myMobility = 0, oppMobility = 0;
-
+        double eval = 0; // Pas de score au début de partie dans les datasets
         for (int i = 0; i < 6; i++) {
-            int s = myHoles[i];
-            int os = oppHoles[i];
-            mySeeds += s;
-            oppSeeds += os;
+            int mySeeds = myHoles[i];
+            if (mySeeds > 12) eval += w[1];
+            else if (mySeeds == 0) eval += w[2];
+            else if (mySeeds < 3) eval += w[3];
 
-            if (s > 0) myMobility++;
-            if (os > 0) oppMobility++;
-
-            if (s > 12) score += w[1];
-            else if (s == 0) score += w[2];
-            else if (s < 3) score += w[3];
-
-            if (os > 12) score -= w[1];
-            else if (os == 0) score -= w[2];
-            else if (os < 3) score -= w[3];
+            int oppSeeds = oppHoles[i];
+            if (oppSeeds > 12) eval -= w[1];
+            else if (oppSeeds == 0) eval -= w[2];
+            else if (oppSeeds < 3) eval -= w[3];
         }
-        score += w[4] * (mySeeds - oppSeeds);
-        score += w[5] * (myMobility - oppMobility);
-        return score;
+        return eval;
     }
 
-    // 2. Évaluation de Match (LECTURE DIRECTE DES BITS = ZÉRO OBJET CRÉÉ)
-    private double evaluateSim(AwariLong board, int playerIndex, int[] w) {
-        int oppIndex = 1 - playerIndex;
-        int myScore = board.getScore(playerIndex);
-        int oppScore = board.getScore(oppIndex);
-
-        double score = w[0] * (myScore - oppScore);
-        int mySeeds = 0, oppSeeds = 0;
-        int myMobility = 0, oppMobility = 0;
-
-        for (int i = 0; i < 6; i++) {
-            // LECTURE DIRECTE DEPUIS LE LONG SANS CRÉER DE TABLEAU
-            int s = board.getSeeds(playerIndex, i);
-            int os = board.getSeeds(oppIndex, i);
-
-            mySeeds += s;
-            oppSeeds += os;
-
-            if (s > 0) myMobility++;
-            if (os > 0) oppMobility++;
-
-            if (s > 12) score += w[1];
-            else if (s == 0) score += w[2];
-            else if (s < 3) score += w[3];
-
-            if (os > 12) score -= w[1];
-            else if (os == 0) score -= w[2];
-            else if (os < 3) score -= w[3];
-        }
-
-        score += w[4] * (mySeeds - oppSeeds);
-        score += w[5] * (myMobility - oppMobility);
-        return score;
-    }
-
-    // --- HELPERS GÉNÉTIQUES ---
-    private int[] toIntArray(Integer[] arr) {
-        int[] res = new int[10];
-        for(int i=0; i<10; i++) res[i] = arr[i];
-        return res;
-    }
-
-    private Integer[] crossover(Integer[] p1, Integer[] p2) {
-        Integer[] child = new Integer[11];
-        int cut = random.nextInt(10);
-        for (int i = 0; i < 10; i++) child[i] = (i < cut) ? p1[i] : p2[i];
-        child[10] = 0;
-        return child;
-    }
-
-    private Integer[] mutateGenome(Integer[] genome) {
-        Integer[] newGenome = Arrays.copyOf(genome, 11);
-        int geneIdx = random.nextInt(10);
-        if (random.nextBoolean()) {
-            double factor = 0.8 + (random.nextDouble() * 0.4);
-            newGenome[geneIdx] = (int) (newGenome[geneIdx] * factor);
-        } else {
-            newGenome[geneIdx] += (random.nextInt(5) - 2);
-        }
-        return newGenome;
-    }
-
-    private int mutate(int value) {
-        double factor = 0.8 + (random.nextDouble() * 0.4);
-        return (int) (value * factor);
-    }
-
-    // --- MOTEUR DE SIMULATION AWARILONG ---
+    // =========================================================================
+    // MOTEUR DE SIMULATION (SELF PLAY)
+    // =========================================================================
     private int playMatch(int[] w1, int[] w2, int depth) {
         AwariLong board = new AwariLong();
         int moves = 0;
@@ -291,10 +218,12 @@ public class MinMaxH6Learner extends CompetitorBot {
                     AwariLong next = new AwariLong(board);
                     next.playMove(i);
                     double val = minimaxSim(next, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, cp, cw);
-                    if (val > bestVal) { bestVal = val; bestMove = i; }
+                    if (val > bestVal) {
+                        bestVal = val;
+                        bestMove = i;
+                    }
                 }
             }
-
             if (bestMove == -1) break;
             board.playMove(bestMove);
             moves++;
@@ -303,13 +232,14 @@ public class MinMaxH6Learner extends CompetitorBot {
         int s1 = board.getScore(0);
         int s2 = board.getScore(1);
         int remaining = 48 - s1 - s2;
-        if (board.getCurrentPlayer() == 0) s2 += remaining; else s1 += remaining;
+        if (board.getCurrentPlayer() == 0) s2 += remaining;
+        else s1 += remaining;
 
         return Integer.compare(s1, s2);
     }
 
     private double minimaxSim(AwariLong board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, int[] w) {
-        if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) return evaluateSim(board, myPlayerIndex, w);
+        if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) return evaluate(board, myPlayerIndex, w);
 
         boolean hasMove = false;
         int cp = board.getCurrentPlayer();
@@ -327,7 +257,7 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (beta <= alpha) break;
                 }
             }
-            if (!hasMove) return evaluateSim(board, myPlayerIndex, w);
+            if (!hasMove) return evaluate(board, myPlayerIndex, w);
             return maxEval;
         } else {
             double minEval = Double.POSITIVE_INFINITY;
@@ -342,17 +272,41 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (beta <= alpha) break;
                 }
             }
-            if (!hasMove) return evaluateSim(board, myPlayerIndex, w);
+            if (!hasMove) return evaluate(board, myPlayerIndex, w);
             return minEval;
         }
     }
 
-    // --- LOGIQUE DU BOT EN COMPÉTITION ---
+    // =========================================================================
+    // FONCTION D'ÉVALUATION UNIVERSELLE (ÉPURÉE, ZÉRO ALLOCATION)
+    // =========================================================================
+    private double evaluate(AwariLong board, int playerIndex, int[] w) {
+        int oppIndex = 1 - playerIndex;
+        double eval = (board.getScore(playerIndex) - board.getScore(oppIndex)) * w[0];
+
+        for (int i = 0; i < 6; i++) {
+            int mySeeds = board.getSeeds(playerIndex, i);
+            if (mySeeds > 12) eval += w[1];
+            else if (mySeeds == 0) eval += w[2];
+            else if (mySeeds < 3) eval += w[3];
+
+            int oppSeeds = board.getSeeds(oppIndex, i);
+            if (oppSeeds > 12) eval -= w[1];
+            else if (oppSeeds == 0) eval -= w[2];
+            else if (oppSeeds < 3) eval -= w[3];
+        }
+        return eval;
+    }
+
+    // =========================================================================
+    // LOGIQUE DU BOT EN COMPÉTITION
+    // =========================================================================
     @Override
     public double[] getDecision(Board board) {
         int currentPlayer = board.getCurrentPlayer();
         int opponentPlayer = Board.otherPlayer(currentPlayer);
 
+        // --- 1. OUVERTURE FORCÉE ---
         if (board.getLog(currentPlayer).length == 0 && board.getLog(opponentPlayer).length == 0) {
             double[] firstMoveDecision = new double[Board.NB_HOLES];
             Arrays.fill(firstMoveDecision, Double.NEGATIVE_INFINITY);
@@ -362,92 +316,121 @@ public class MinMaxH6Learner extends CompetitorBot {
             }
         }
 
+        // --- 2. INITIALISATION ---
         double[] bestDecisions = new double[Board.NB_HOLES];
         Arrays.fill(bestDecisions, Double.NEGATIVE_INFINITY);
 
         long startTime = System.currentTimeMillis();
         this.timeOut = false;
-        this.nodeCount = 0;
 
+        // On crée notre plateau ultra-léger basé sur les bits
         AwariLong fastRoot = AwariLong.fromBoard(board);
 
-        for (int depth = 1; depth <= 60; depth++) {
+        // --- 3. APPROFONDISSEMENT ITÉRATIF ---
+        for (int depth = 1; depth <= 50; depth++) {
             double[] currentDecisions = new double[Board.NB_HOLES];
             Arrays.fill(currentDecisions, Double.NEGATIVE_INFINITY);
             boolean searchCompleted = true;
 
-            Integer[] moveOrder = {0, 1, 2, 3, 4, 5};
+            // --- TRI PRIMITIF ---
+            int[] moveOrder = {0, 1, 2, 3, 4, 5};
             if (depth > 1) {
-                final double[] prev = bestDecisions;
-                Arrays.sort(moveOrder, (a, b) -> Double.compare(prev[b], prev[a]));
+                for (int i = 0; i < 6; i++) {
+                    for (int j = i + 1; j < 6; j++) {
+                        if (bestDecisions[moveOrder[j]] > bestDecisions[moveOrder[i]]) {
+                            int temp = moveOrder[i];
+                            moveOrder[i] = moveOrder[j];
+                            moveOrder[j] = temp;
+                        }
+                    }
+                }
             }
 
-            for (int i : moveOrder) {
+            // --- SIMULATION ---
+            for (int holeIndex = 0; holeIndex < 6; holeIndex++) {
+                int i = moveOrder[holeIndex];
+
                 if (fastRoot.isValidMove(currentPlayer, i)) {
+                    //On clone le plateau AVANT de jouer pour ne pas casser la racine
                     AwariLong nextState = new AwariLong(fastRoot);
                     nextState.playMove(i);
+
+                    // On lance minimax (le prochain coup c'est l'adversaire, donc maximizing = false)
                     double val = minimax(nextState, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, currentPlayer, startTime);
 
-                    if (timeOut) { searchCompleted = false; break; }
+                    if (timeOut) {
+                        searchCompleted = false;
+                        break;
+                    }
                     currentDecisions[i] = val;
                 }
             }
 
+            // --- 4. SAUVEGARDE DE SÉCURITÉ ---
             if (searchCompleted) {
                 System.arraycopy(currentDecisions, 0, bestDecisions, 0, Board.NB_HOLES);
             } else {
                 break;
             }
         }
+
         return bestDecisions;
     }
 
     private double minimax(AwariLong board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, long startTime) {
-        if ((nodeCount++ & 511) == 0) {
-            if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
-                timeOut = true;
-                return 0.0;
-            }
+        if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
+            timeOut = true;
+            return 0.0;
         }
 
+        // Condition d'arrêt optimisée (moins de 6 graines selon les règles)
         if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) {
-            return evaluateSim(board, myPlayerIndex, weights); // LECTURE DIRECTE = VITESSE MAX
+            return evaluate(board, myPlayerIndex, this.weights);
         }
 
         boolean hasMove = false;
-        int currentPlayer = board.getCurrentPlayer();
+        int currentPlayer = board.getCurrentPlayer(); // À qui est-ce le tour sur ce plateau virtuel ?
 
         if (maximizingPlayer) {
             double maxEval = Double.NEGATIVE_INFINITY;
             for (int i = 0; i < 6; i++) {
                 if (board.isValidMove(currentPlayer, i)) {
                     hasMove = true;
+
+                    // ON CLONE AVANT DE SIMULER
                     AwariLong nextState = new AwariLong(board);
                     nextState.playMove(i);
+
                     double eval = minimax(nextState, depth - 1, alpha, beta, false, myPlayerIndex, startTime);
                     maxEval = Math.max(maxEval, eval);
                     alpha = Math.max(alpha, eval);
+
                     if (beta <= alpha) break;
                     if (timeOut) return maxEval;
                 }
             }
-            if (!hasMove) return evaluateSim(board, myPlayerIndex, weights);
+            if (!hasMove) return evaluate(board, myPlayerIndex, this.weights);
             return maxEval;
+
         } else {
             double minEval = Double.POSITIVE_INFINITY;
             for (int i = 0; i < 6; i++) {
                 if (board.isValidMove(currentPlayer, i)) {
                     hasMove = true;
+
+                    // ON CLONE AVANT DE SIMULER
                     AwariLong nextState = new AwariLong(board);
                     nextState.playMove(i);
+
                     double eval = minimax(nextState, depth - 1, alpha, beta, true, myPlayerIndex, startTime);
                     minEval = Math.min(minEval, eval);
                     beta = Math.min(beta, eval);
+
                     if (beta <= alpha) break;
                     if (timeOut) return minEval;
                 }
             }
-            if (!hasMove) return evaluateSim(board, myPlayerIndex, weights);
+            if (!hasMove) return evaluate(board, myPlayerIndex, this.weights);
             return minEval;
         }
     }
