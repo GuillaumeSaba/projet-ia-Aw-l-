@@ -17,7 +17,6 @@ public class MinMaxH4Learner extends CompetitorBot {
 
     private static final long TIME_LIMIT_MS = 95; // On profite des 100ms
     private boolean timeOut = false;
-    private long nodes = 0;
 
     // Poids par défaut (Ceux de votre FastBoard classique qui gagne)
     // [0]=FacteurScore, [1]=BonusKrou, [2]=MalusVide, [3]=MalusVulnérable, etc...
@@ -67,21 +66,25 @@ public class MinMaxH4Learner extends CompetitorBot {
         // Ajustement dynamique selon la puissance du PC
         int popSize = 20;
         int simDepth = 6;
-        if (matches > 5000) { popSize = 40; simDepth = 8; }
-        else if (matches > 2000) { popSize = 30; simDepth = 7; }
+        if (matches > 5000) {
+            popSize = 40;
+            simDepth = 8;
+        } else if (matches > 2000) {
+            popSize = 30;
+            simDepth = 7;
+        }
 
         // --- PHASE 1 : APPRENTISSAGE ---
         // On laisse 1 minute de marge à la fin pour la finale
         long maxDuration = 3600000 - 60000;
 
-        // Chargement du dataset (Attention au chemin, assurez-vous qu'il est bon)
-        loadDataset("C:/Users/Guillaume/projet-ia-Aw-l-/ia_project/data/awele.data");
+        loadDataset("ia_project/data/awele.data");
 
         // Initialisation de la population
         Integer[][] population = new Integer[popSize][11]; // [10] = Score Fitness
 
         // L'individu 0 est notre champion actuel (pour ne pas régresser)
-        for(int i=0; i<10; i++) population[0][i] = defaultWeights[i];
+        for (int i = 0; i < 10; i++) population[0][i] = defaultWeights[i];
         population[0][10] = 0;
 
         // Les autres sont aléatoires ou mutés
@@ -127,12 +130,11 @@ public class MinMaxH4Learner extends CompetitorBot {
             Arrays.sort(population, Comparator.comparingInt(a -> -a[10]));
 
 
-
             // REPRODUCTION (Élitisme + Croisement)
             Integer[][] newPopulation = new Integer[popSize][11];
 
             // On garde les 3 meilleurs intacts (Élitisme)
-            for(int k=0; k<3; k++) newPopulation[k] = Arrays.copyOf(population[k], 11);
+            for (int k = 0; k < 3; k++) newPopulation[k] = Arrays.copyOf(population[k], 11);
 
             // Les autres sont des enfants
             for (int i = 3; i < popSize; i++) {
@@ -187,8 +189,8 @@ public class MinMaxH4Learner extends CompetitorBot {
                 TrainingData data = new TrainingData();
                 data.myHoles = new int[6];
                 data.oppHoles = new int[6];
-                for(int i=0; i<6; i++) data.myHoles[i] = Integer.parseInt(parts[i]);
-                for(int i=0; i<6; i++) data.oppHoles[i] = Integer.parseInt(parts[6+i]);
+                for (int i = 0; i < 6; i++) data.myHoles[i] = Integer.parseInt(parts[i]);
+                for (int i = 0; i < 6; i++) data.oppHoles[i] = Integer.parseInt(parts[6 + i]);
                 data.winning = parts[13].equals("G");
                 dataset.add(data);
             }
@@ -213,7 +215,7 @@ public class MinMaxH4Learner extends CompetitorBot {
     // Helpers génétiques
     private int[] toIntArray(Integer[] arr) {
         int[] res = new int[10];
-        for(int i=0; i<10; i++) res[i] = arr[i];
+        for (int i = 0; i < 10; i++) res[i] = arr[i];
         return res;
     }
 
@@ -247,8 +249,10 @@ public class MinMaxH4Learner extends CompetitorBot {
         FastBoard board = new FastBoard(); // Plateau vide initial (0-0 partout c'est pas valide mais ici c'est pour l'objet)
         // Correction : On doit initialiser un vrai plateau de départ classique
         // Pour simplifier, on simule un plateau de départ 4 graines partout
-        for(int i=0; i<12; i++) board.holes[i] = 4;
-        board.scores[0]=0; board.scores[1]=0; board.currentPlayer=0;
+        for (int i = 0; i < 12; i++) board.holes[i] = 4;
+        board.scores[0] = 0;
+        board.scores[1] = 0;
+        board.currentPlayer = 0;
 
         int moves = 0;
         // Condition d'arrêt : moins de 6 graines ou trop de coups
@@ -266,7 +270,10 @@ public class MinMaxH4Learner extends CompetitorBot {
                     FastBoard next = board.playMove(i);
                     // Appel récursif
                     double val = minimaxSim(next, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, cp, cw);
-                    if (val > bestVal) { bestVal = val; bestMove = i; }
+                    if (val > bestVal) {
+                        bestVal = val;
+                        bestMove = i;
+                    }
                 }
             }
 
@@ -280,7 +287,8 @@ public class MinMaxH4Learner extends CompetitorBot {
         int s2 = board.scores[1];
         int remaining = board.getTotalSeeds();
         // Règle simplifiée : le joueur courant ne capture pas le reste s'il est bloqué, mais ici c'est une simu rapide
-        if (board.currentPlayer == 0) s2 += remaining; else s1 += remaining;
+        if (board.currentPlayer == 0) s2 += remaining;
+        else s1 += remaining;
 
         return Integer.compare(s1, s2);
     }
@@ -360,7 +368,7 @@ public class MinMaxH4Learner extends CompetitorBot {
         // On reconstruit les tableaux pour evaluateSimRaw
         int[] myHoles = new int[6];
         int[] oppHoles = new int[6];
-        for(int i=0; i<6; i++) {
+        for (int i = 0; i < 6; i++) {
             myHoles[i] = board.holes[playerIndex * 6 + i];
             oppHoles[i] = board.holes[opponentIndex * 6 + i];
         }
@@ -387,7 +395,6 @@ public class MinMaxH4Learner extends CompetitorBot {
 
         long startTime = System.currentTimeMillis();
         this.timeOut = false;
-        this.nodes = 0; // RESET CRITIQUE
 
         FastBoard rootState = new FastBoard(board);
 
@@ -408,7 +415,10 @@ public class MinMaxH4Learner extends CompetitorBot {
                     FastBoard nextState = rootState.playMove(i);
                     double val = minimax(nextState, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, currentPlayer, startTime);
 
-                    if (timeOut) { searchCompleted = false; break; }
+                    if (timeOut) {
+                        searchCompleted = false;
+                        break;
+                    }
                     currentDecisions[i] = val;
                 } else {
                     currentDecisions[i] = Double.NEGATIVE_INFINITY;
@@ -425,12 +435,9 @@ public class MinMaxH4Learner extends CompetitorBot {
     }
 
     private double minimax(FastBoard board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, long startTime) {
-        // Vérification Temps tous les 512 noeuds
-        if ((nodes++ & 511) == 0) {
-            if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
-                timeOut = true;
-                return 0.0;
-            }
+        if (System.currentTimeMillis() - startTime > TIME_LIMIT_MS) {
+            timeOut = true;
+            return 0.0;
         }
 
         if (depth == 0 || board.getTotalSeeds() < 6) {
@@ -480,7 +487,8 @@ public class MinMaxH4Learner extends CompetitorBot {
         int currentPlayer;
 
         // Constructeur privé pour initialisation manuelle (utilisé dans playMatch)
-        private FastBoard() {}
+        private FastBoard() {
+        }
 
         // Constructeur officiel
         public FastBoard(Board b) {
@@ -503,14 +511,21 @@ public class MinMaxH4Learner extends CompetitorBot {
             this.currentPlayer = source.currentPlayer;
         }
 
-        public int getTotalSeeds() { return 48 - this.scores[0] - this.scores[1]; }
+        public int getTotalSeeds() {
+            return 48 - this.scores[0] - this.scores[1];
+        }
 
         public boolean isValid(int moveIndex) {
             int pos = this.currentPlayer * 6 + moveIndex;
             if (this.holes[pos] == 0) return false;
             int oppSide = 1 - this.currentPlayer;
             boolean opponentEmpty = true;
-            for (int i = 0; i < 6; i++) { if (this.holes[oppSide * 6 + i] > 0) { opponentEmpty = false; break; } }
+            for (int i = 0; i < 6; i++) {
+                if (this.holes[oppSide * 6 + i] > 0) {
+                    opponentEmpty = false;
+                    break;
+                }
+            }
             if (opponentEmpty) return (moveIndex + this.holes[pos] >= 6);
             return true;
         }
@@ -535,11 +550,17 @@ public class MinMaxH4Learner extends CompetitorBot {
                 boolean takeAll = true;
                 for (int i = 0; i <= currentHole % 6; i++) {
                     int val = next.holes[oppSide * 6 + i];
-                    if (val == 1 || val > 3) { takeAll = false; break; }
+                    if (val == 1 || val > 3) {
+                        takeAll = false;
+                        break;
+                    }
                 }
                 if (takeAll) {
                     for (int i = (currentHole % 6) + 1; i < 6; i++) {
-                        if (next.holes[oppSide * 6 + i] != 0) { takeAll = false; break; }
+                        if (next.holes[oppSide * 6 + i] != 0) {
+                            takeAll = false;
+                            break;
+                        }
                     }
                 }
                 if (!takeAll) {
