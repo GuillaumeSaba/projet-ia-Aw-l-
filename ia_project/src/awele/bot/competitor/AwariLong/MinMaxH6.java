@@ -79,7 +79,7 @@ public class MinMaxH6 extends CompetitorBot {
                 int i = moveOrder[holeIndex];
 
                 if (fastRoot.isValidMove(currentPlayer, i)) {
-                    //On clone le plateau AVANT de jouer pour ne pas casser la racine
+                    //On clone le plateau avant de jouer pour ne pas casser la racine
                     AwariLong nextState = new AwariLong(fastRoot);
                     nextState.playMove(i);
 
@@ -117,7 +117,7 @@ public class MinMaxH6 extends CompetitorBot {
         }
 
         boolean hasMove = false;
-        int currentPlayer = board.getCurrentPlayer(); // À qui est-ce le tour sur ce plateau virtuel ?
+        int currentPlayer = board.getCurrentPlayer();
 
         if (maximizingPlayer) {
             double maxEval = Double.NEGATIVE_INFINITY;
@@ -125,7 +125,7 @@ public class MinMaxH6 extends CompetitorBot {
                 if (board.isValidMove(currentPlayer, i)) {
                     hasMove = true;
 
-                    // ON CLONE AVANT DE SIMULER
+                    // clonage avanr de simuler
                     AwariLong nextState = new AwariLong(board);
                     nextState.playMove(i);
 
@@ -146,7 +146,7 @@ public class MinMaxH6 extends CompetitorBot {
                 if (board.isValidMove(currentPlayer, i)) {
                     hasMove = true;
 
-                    // ON CLONE AVANT DE SIMULER
+                    // clonage avant de simuler
                     AwariLong nextState = new AwariLong(board);
                     nextState.playMove(i);
 

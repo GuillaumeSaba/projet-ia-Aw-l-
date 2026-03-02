@@ -17,12 +17,12 @@ public class MinMaxH6Learner extends CompetitorBot {
     // --- PARAMÈTRES DE TEMPS ---
     private static final long TIME_LIMIT_MS = 95;
     private boolean timeOut = false;
-    private long nodeCount = 0;
 
     // --- PARAMÈTRES D'APPRENTISSAGE ---
     // [0]=Score, [1]=Krou, [2]=Vide, [3]=Vulnérable
     private int[] defaultWeights = {25, 28, -54, -36};
-    private int[] weights = new int[4];
+    private int[] weights = new int[4]; //Tableau pour l'apprentissage
+    private int w0, w1, w2, w3; //variable pour eviter de parcourir plusieurs fois le tableau
 
     private Random random;
     private List<TrainingData> dataset;
@@ -50,7 +50,7 @@ public class MinMaxH6Learner extends CompetitorBot {
     }
 
     // =========================================================================
-    // APPRENTISSAGE : HILL CLIMBING HYBRIDE (DATASET + SELF-PLAY)
+    // APPRENTISSAGE : HILL CLIMBING HYBRIDE
     // =========================================================================
     @Override
     public void learn() {
@@ -69,7 +69,8 @@ public class MinMaxH6Learner extends CompetitorBot {
         int matches = 0;
         long benchStart = System.currentTimeMillis();
         while (System.currentTimeMillis() - benchStart < 1000) {
-            playMatch(currentChampion, currentChampion, 5);
+            // CORRECTION : Ajout de Long.MAX_VALUE
+            playMatch(currentChampion, currentChampion, 5, Long.MAX_VALUE);
             matches++;
         }
         int simDepth = (matches > 6000) ? 9 : (matches > 3000 ? 8 : 7);
@@ -106,11 +107,13 @@ public class MinMaxH6Learner extends CompetitorBot {
             // 4. VALIDATION EN SELF-PLAY
             int scoreChallenger = 0;
 
-            int resAller = playMatch(challenger, currentChampion, simDepth);
+            // CORRECTION : Utilisation de Long.MAX_VALUE au lieu de deadlineAller
+            int resAller = playMatch(challenger, currentChampion, simDepth, Long.MAX_VALUE);
             if (resAller > 0) scoreChallenger += 3;
             else if (resAller == 0) scoreChallenger += 1;
 
-            int resRetour = playMatch(currentChampion, challenger, simDepth);
+            // CORRECTION : Ajout de Long.MAX_VALUE
+            int resRetour = playMatch(currentChampion, challenger, simDepth, Long.MAX_VALUE);
             if (resRetour < 0) scoreChallenger += 3;
             else if (resRetour == 0) scoreChallenger += 1;
 
@@ -125,6 +128,7 @@ public class MinMaxH6Learner extends CompetitorBot {
             iteration++;
         }
 
+        /*
         // --- 5. LE FILET DE SÉCURITÉ DE HAUTE PROFONDEUR ---
         System.err.println("Apprentissage terminé en " + iteration + " itérations.");
         System.err.println("Validation finale à haute profondeur (Depth 8)...");
@@ -132,22 +136,37 @@ public class MinMaxH6Learner extends CompetitorBot {
         int finalScore = 0;
         int validationDepth = 8;
 
-        int resAller = playMatch(currentChampion, defaultWeights, validationDepth);
-        if (resAller > 0) finalScore += 3;
-        else if (resAller == 0) finalScore += 1;
+        // On donne 10 secondes MAX par match pour ne jamais dépasser l'heure
+        long deadlineAller = System.currentTimeMillis() + 10000;
+        int resAller = playMatch(currentChampion, defaultWeights, validationDepth, deadlineAller);
+        if (resAller > 0) finalScore += 3; else if (resAller == 0) finalScore += 1;
 
-        int resRetour = playMatch(defaultWeights, currentChampion, validationDepth);
-        if (resRetour < 0) finalScore += 3;
-        else if (resRetour == 0) finalScore += 1;
+        long deadlineRetour = System.currentTimeMillis() + 10000;
+        int resRetour = playMatch(defaultWeights, currentChampion, validationDepth, deadlineRetour);
+        if (resRetour < 0) finalScore += 3; else if (resRetour == 0) finalScore += 1;
 
         if (finalScore >= 4) {
             System.err.println("SUCCÈS : Les poids appris sont validés !");
             System.arraycopy(currentChampion, 0, this.weights, 0, 4);
         } else {
-            System.err.println("PROTECTION ACTIVE : L'apprentissage est moins bon à haute profondeur.");
+            System.err.println("PROTECTION ACTIVE : Match annulé (Trop long) ou Apprentissage moins bon.");
             System.err.println("Restauration du filet de sécurité (Poids de l'expert).");
             System.arraycopy(defaultWeights, 0, this.weights, 0, 4);
         }
+
+         */
+
+        System.arraycopy(currentChampion, 0, this.weights, 0, 4);
+
+        // --- 6. INITIALISATION DES REGISTRES CPU ---
+        this.w0 = this.weights[0];
+        this.w1 = this.weights[1];
+        this.w2 = this.weights[2];
+        this.w3 = this.weights[3];
+
+        //je clear la RAM
+        this.dataset.clear();
+        this.dataset = null;
     }
 
     // =========================================================================
@@ -202,13 +221,17 @@ public class MinMaxH6Learner extends CompetitorBot {
     // =========================================================================
     // MOTEUR DE SIMULATION (SELF PLAY)
     // =========================================================================
-    private int playMatch(int[] w1, int[] w2, int depth) {
+    private int playMatch(int[] w1, int[] w2, int depth, long deadline) {
         AwariLong board = new AwariLong();
         int moves = 0;
 
         while ((48 - board.getScore(0) - board.getScore(1)) > 6 && moves < 150) {
+            // STOP D'URGENCE SI LE TEMPS EST DÉPASSÉ
+            if (System.currentTimeMillis() > deadline) return 0; // Match nul forcé
+
             int cp = board.getCurrentPlayer();
             int[] cw = (cp == 0) ? w1 : w2;
+            int w0 = cw[0], w_1 = cw[1], w_2 = cw[2], w_3 = cw[3]; // Extraction pour la vitesse
 
             int bestMove = -1;
             double bestVal = Double.NEGATIVE_INFINITY;
@@ -218,10 +241,7 @@ public class MinMaxH6Learner extends CompetitorBot {
                     AwariLong next = new AwariLong(board);
                     next.playMove(i);
                     double val = minimaxSim(next, depth - 1, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, false, cp, cw);
-                    if (val > bestVal) {
-                        bestVal = val;
-                        bestMove = i;
-                    }
+                    if (val > bestVal) { bestVal = val; bestMove = i; }
                 }
             }
             if (bestMove == -1) break;
@@ -232,14 +252,13 @@ public class MinMaxH6Learner extends CompetitorBot {
         int s1 = board.getScore(0);
         int s2 = board.getScore(1);
         int remaining = 48 - s1 - s2;
-        if (board.getCurrentPlayer() == 0) s2 += remaining;
-        else s1 += remaining;
+        if (board.getCurrentPlayer() == 0) s2 += remaining; else s1 += remaining;
 
         return Integer.compare(s1, s2);
     }
 
     private double minimaxSim(AwariLong board, int depth, double alpha, double beta, boolean maximizingPlayer, int myPlayerIndex, int[] w) {
-        if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) return evaluate(board, myPlayerIndex, w);
+        if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) return evaluate(board, myPlayerIndex);
 
         boolean hasMove = false;
         int cp = board.getCurrentPlayer();
@@ -257,7 +276,7 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (beta <= alpha) break;
                 }
             }
-            if (!hasMove) return evaluate(board, myPlayerIndex, w);
+            if (!hasMove) return evaluate(board, myPlayerIndex);
             return maxEval;
         } else {
             double minEval = Double.POSITIVE_INFINITY;
@@ -272,28 +291,28 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (beta <= alpha) break;
                 }
             }
-            if (!hasMove) return evaluate(board, myPlayerIndex, w);
+            if (!hasMove) return evaluate(board, myPlayerIndex);
             return minEval;
         }
     }
 
     // =========================================================================
-    // FONCTION D'ÉVALUATION UNIVERSELLE (ÉPURÉE, ZÉRO ALLOCATION)
+    // FONCTION D'ÉVALUATION
     // =========================================================================
-    private double evaluate(AwariLong board, int playerIndex, int[] w) {
+    private double evaluate(AwariLong board, int playerIndex) {
         int oppIndex = 1 - playerIndex;
-        double eval = (board.getScore(playerIndex) - board.getScore(oppIndex)) * w[0];
+        double eval = (board.getScore(playerIndex) - board.getScore(oppIndex)) * this.w0;
 
         for (int i = 0; i < 6; i++) {
             int mySeeds = board.getSeeds(playerIndex, i);
-            if (mySeeds > 12) eval += w[1];
-            else if (mySeeds == 0) eval += w[2];
-            else if (mySeeds < 3) eval += w[3];
+            if (mySeeds > 12) eval += this.w1;
+            else if (mySeeds == 0) eval += this.w2;
+            else if (mySeeds < 3) eval += this.w3;
 
             int oppSeeds = board.getSeeds(oppIndex, i);
-            if (oppSeeds > 12) eval -= w[1];
-            else if (oppSeeds == 0) eval -= w[2];
-            else if (oppSeeds < 3) eval -= w[3];
+            if (oppSeeds > 12) eval -= this.w1;
+            else if (oppSeeds == 0) eval -= this.w2;
+            else if (oppSeeds < 3) eval -= this.w3;
         }
         return eval;
     }
@@ -323,7 +342,7 @@ public class MinMaxH6Learner extends CompetitorBot {
         long startTime = System.currentTimeMillis();
         this.timeOut = false;
 
-        // On crée notre plateau ultra-léger basé sur les bits
+        // On crée notre plateau léger basé sur les bits
         AwariLong fastRoot = AwariLong.fromBoard(board);
 
         // --- 3. APPROFONDISSEMENT ITÉRATIF ---
@@ -385,7 +404,7 @@ public class MinMaxH6Learner extends CompetitorBot {
 
         // Condition d'arrêt optimisée (moins de 6 graines selon les règles)
         if (depth == 0 || (48 - board.getScore(0) - board.getScore(1)) < 6) {
-            return evaluate(board, myPlayerIndex, this.weights);
+            return evaluate(board, myPlayerIndex);
         }
 
         boolean hasMove = false;
@@ -409,7 +428,7 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (timeOut) return maxEval;
                 }
             }
-            if (!hasMove) return evaluate(board, myPlayerIndex, this.weights);
+            if (!hasMove) return evaluate(board, myPlayerIndex);
             return maxEval;
 
         } else {
@@ -430,7 +449,7 @@ public class MinMaxH6Learner extends CompetitorBot {
                     if (timeOut) return minEval;
                 }
             }
-            if (!hasMove) return evaluate(board, myPlayerIndex, this.weights);
+            if (!hasMove) return evaluate(board, myPlayerIndex);
             return minEval;
         }
     }

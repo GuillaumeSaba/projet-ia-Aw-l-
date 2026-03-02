@@ -12,10 +12,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+/*
 public class MinMaxH4Learner extends CompetitorBot {
 
     // --- PARAMÈTRES DE TEMPS ---
-    private static final long TIME_LIMIT_MS = 95;
+    private static final long TIME_LIMIT_MS = 90;
     private boolean timeOut = false;
 
     // --- PARAMÈTRES D'APPRENTISSAGE ---
@@ -129,13 +130,12 @@ public class MinMaxH4Learner extends CompetitorBot {
         System.err.println("Validation finale à haute profondeur (Depth 8)...");
 
         int finalScore = 0;
-        int validationDepth = 8;
 
-        int resAller = playMatch(currentChampion, defaultWeights, validationDepth);
+        int resAller = playMatch(currentChampion, defaultWeights, simDepth);
         if (resAller > 0) finalScore += 3;
         else if (resAller == 0) finalScore += 1;
 
-        int resRetour = playMatch(defaultWeights, currentChampion, validationDepth);
+        int resRetour = playMatch(defaultWeights, currentChampion, simDepth);
         if (resRetour < 0) finalScore += 3;
         else if (resRetour == 0) finalScore += 1;
 
@@ -537,3 +537,5 @@ public class MinMaxH4Learner extends CompetitorBot {
         }
     }
 }
+
+ */
